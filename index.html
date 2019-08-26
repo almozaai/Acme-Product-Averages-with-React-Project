@@ -1,0 +1,161 @@
+<html>
+  <head>
+    <script src="https://unpkg.com/react@16/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-router-dom/umd/react-router-dom.min.js"></script>
+
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.0/axios.js'></script>
+
+    <style>
+        nav {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+      }
+      .selected {
+        background-color: tomato;
+        color: white;
+        padding: 1rem;
+      }
+
+      ul{
+        margin: 0 0;
+        padding: 0 0;
+      }
+
+      li{
+        list-style: none;
+      }
+      li p {
+        margin: 0 0;
+        padding: 0 0;
+      }
+      li div{
+        margin-top: 20px;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { render } = ReactDOM;
+      const { Component } = React;
+      const { HashRouter, NavLink, Link, Route, Redirect, Switch } = ReactRouterDOM;
+
+      const Nav = ({ path }) => {
+        return (
+          <nav>
+            <Link to='/home' className={ path === '/home' ? 'selected' : ''}>Home</Link>
+            <Link to='/products' className={ path === '/products' ? 'selected' : ''}>Products</Link>
+          </nav>
+        )
+      }
+
+      const Home = ({productsAndOfferings})=> {
+        return(
+          <div>
+            <h1>Home</h1>
+            <p>we have {productsAndOfferings.length} products with an average price
+                        of {productsAndOfferings.reduce((acc,elem, i, arr) => {
+                        return (acc + elem.suggestedPrice)/arr.length
+                          }, 0).toFixed(2)
+                      }
+            </p>
+
+          </div>
+        )
+      }
+      const Products = ({productsAndOfferings}) => {
+        return(
+          <div>
+            <h1>Products</h1>
+            <ul>
+              {
+                productsAndOfferings.map(product =>{
+                  return(
+                    <li>
+                      <div>
+                      <p><strong>Product name:</strong> {product.name}</p>
+                      <p><strong>Sugested price: </strong>{product.suggestedPrice}</p>
+                      <p><strong>Average price: </strong>{product.averagePrice}</p>
+                      <p><strong>Lowest price: </strong>{product.lowestPrice}</p>
+                      <hr/>
+                      </div>
+
+                    </li>
+                  )
+                })
+              }
+            </ul>
+          </div>
+        )
+      }
+
+      class App extends Component{
+        constructor(){
+          super();
+          this.state = {
+            productsAndOfferings: []
+          }
+        }
+
+        async componentDidMount(){
+          const responses = await Promise.all([
+            fetch('https://acme-users-api-rev.herokuapp.com/api/products'),
+            fetch('https://acme-users-api-rev.herokuapp.com/api/companies'),
+            fetch('https://acme-users-api-rev.herokuapp.com/api/offerings')
+            ]);
+        const [ products, companies, offerings ] = await Promise.all(responses.map( response =>response.json()));
+
+        const productsAndOfferings = products.map(product => {
+          let obj = {}
+          let averagePrice = 0;
+          let count = 0
+          let lowestPrice = 0
+          let lowestPriceArray = []
+          offerings.forEach(offering => {
+            if(product.id == offering.productId){
+              averagePrice += offering.price
+              obj.suggestedPrice = product.suggestedPrice;
+              lowestPriceArray.push(offering.price)
+              count += 1
+            }
+          })
+          obj.averagePrice = (averagePrice / count).toFixed(2);
+          lowestPrice = lowestPriceArray.sort()[0]
+          obj.name = product.name
+          offerings.forEach(offering =>  {
+            companies.forEach(company => {
+              if(offering.price === lowestPrice){
+                obj.lowestPrice = lowestPrice + ' offerd by ' + company.name
+              }
+            })
+          })
+            return obj
+      })
+
+        this.setState({productsAndOfferings});
+      }
+
+        render(){
+          const { productsAndOfferings } = this.state;
+
+          return(
+            <HashRouter>
+                <Route render={ (props) => <Nav path={props.location.pathname}/>}/>
+              <Switch>
+                <Route path='/home' render={ ()=> <Home productsAndOfferings={productsAndOfferings} />} />
+                <Route path='/products' render={ ()=> <Products productsAndOfferings={productsAndOfferings} />} />
+                <Redirect to='/products' />
+              </Switch>
+            </HashRouter>
+          )
+        }
+      }
+      const root = document.querySelector('#root');
+      render(<App />, root)
+    </script>
+  </body>
+</html>
